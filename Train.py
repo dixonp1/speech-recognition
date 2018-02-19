@@ -14,7 +14,7 @@ save features in proper partition folder with name equivalent to original
 
 '''
 wav_path = "/home/patrick/PycharmProjects/Speech Recognition/speech_commands"
-feature_path = "/home/patrick/PycharmProjects/Speech Recognition/test"
+feature_path = "/home/patrick/PycharmProjects/Speech Recognition/speech_cmd_features"
 
 def audio_to_feature_files(wav_dir, feature_dir):
     test_set_file = open(os.path.join(wav_dir, 'testing_list.txt'), mode='r')
@@ -29,8 +29,9 @@ def audio_to_feature_files(wav_dir, feature_dir):
     sess = tf.InteractiveSession()
     processor = AudioProcessor(training=True)
 
+    j = 0
     path = os.path.join(wav_path, '*', '*.wav')
-    for f in gfile.Glob(path)[:1]:
+    for f in gfile.Glob(path):
         f_path, audio_file = os.path.split(f)
         _, word = os.path.split(f_path)
 
@@ -73,6 +74,8 @@ def audio_to_feature_files(wav_dir, feature_dir):
                 os.makedirs(ffdir)
 
             np.save(feature_file_path, audio_features)
+        j += 1
+        print("%d/%d" % (j, len(gfile.Glob(path))))
 
     sess.close()
 
