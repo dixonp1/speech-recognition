@@ -6,9 +6,7 @@ import time as t
 
 start = t.time()
 
-#mnist = input_data.read_data_sets('MNIST_data', one_hot=True)
-
-def init_weights(shape):
+def _init_weights(shape):
     """
     initializes weights and biases to passed in shape
     :param shape: array of dims
@@ -18,49 +16,61 @@ def init_weights(shape):
     b = tf.constant(0.1, shape=[shape[-1]])
     return tf.Variable(w), tf.Variable(b)
 
-'''
-   
-    width = frequency domain
-    height = time domain 
-    1st conv
-        kernel width = 9
-        kernel height = 20 (2/3 in time domain)
-        feature maps = 64
-        stride = 1
-    relu
-    max pool  (reduces variability, noise)
-        width = 3 
-        height = 1
-    2nd conv
-        kernel width = 4
-        kernel height = 10
-        feature maps = 32
-        stride = 1
-    relu
-    fully-connected
-        hidden units = 128
-    softmax 
 
-'''
-W1, b1 = init_weights([20, 9, 1, 64])
-conv1 = tf.nn.conv2d(signal, W1, strides=[1, 1, 1, 1], padding='SAME')
-relu1 = tf.nn.relu(conv1 + b1)
-pool1 = tf.nn.max_pool(relu1, ksize=[1, 3, 1, 1], strides=[1, 3, 1, 1], padding='SAME')
+def build_model(sig_features, label_count):
+    '''
 
-W2, b2 = init_weights([10, 4, 64, 64])
-conv2 = tf.nn.conv2d(pool1, W2, strides=[1, 1, 1, 1], padding='SAME')
-relu2 = tf.nn.relu(conv2 + b2)
+        width = frequency domain
+        height = time domain
+        1st conv
+            kernel width = 9
+            kernel height = 20 (2/3 in time domain)
+            feature maps = 64
+            stride = 1
+        relu
+        max pool  (reduces variability, noise)
+            width = 3
+            height = 1
+        2nd conv
+            kernel width = 4
+            kernel height = 10
+            feature maps = 32
+            stride = 1
+        relu
+        fully-connected
+            hidden units = 128
+        softmax
 
-out_height = relu2.get_shape()[1]
-out_width = relu2.get_shape()[2]
+    '''
+    W1, b1 = _init_weights([20, 9, 1, 64])
+    conv1 = tf.nn.conv2d(sig_features, W1, strides=[1, 1, 1, 1], padding='SAME')
+    relu1 = tf.nn.relu(conv1 + b1)
+    pool1 = tf.nn.max_pool(relu1, ksize=[1, 3, 1, 1], strides=[1, 3, 1, 1], padding='SAME')
 
-# fully-connected layer
-W3, b3 = init_weights([out_height*out_width*64, label_count])
-flatten = tf.reshape(relu2, [-1, out_height*out_width*64])
-z = tf.matmul(flatten, W3) + b3
+    W2, b2 = _init_weights([10, 4, 64, 64])
+    conv2 = tf.nn.conv2d(pool1, W2, strides=[1, 1, 1, 1], padding='SAME')
+    relu2 = tf.nn.relu(conv2 + b2)
+
+    out_height = relu2.get_shape()[1]
+    out_width = relu2.get_shape()[2]
+
+    # fully-connected layer
+    W3, b3 = _init_weights([out_height*out_width*64, 128])
+    flatten = tf.reshape(relu2, [-1, out_height*out_width*64])
+    z1 = tf.matmul(flatten, W3) + b3
+    #relu3 = tf.nn.relu(z1)
+
+    '''
+    # softmax
+    W4, b4 = _init_weights([128, label_count])
+    z2 = tf.matmul(relu3, W4) + b4
+    softmax = tf.exp(z2) / tf.reduce_sum(tf.exp(z2), -1)
+    '''
+
+    return z1
 
 
-'''
+
 # cost function
 sm = tf.nn.softmax_cross_entropy_with_logits(labels=y_, logits=z)
 cross_entropy = tf.reduce_mean(sm)
@@ -91,4 +101,4 @@ print('test accuracy %g' % accuracy.eval(feed_dict={
 end = t.time()
 
 print('runtime: %f' % (end-start))
-'''
+
