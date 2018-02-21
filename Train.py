@@ -1,11 +1,17 @@
 import tensorflow as tf
 import numpy as np
-from Input_Data import AudioProcessor
+#from Input_Data import AudioProcessor
 from tensorflow.python.platform import gfile
+from math import floor
+from glob import glob
 import os.path
+import random
 
 
 MAX_SHIFT = 100 #ms
+_SILENCE_LABEL_ = 0
+_UNKN_LABEL_ = 1
+_SILENCE_FILE_ = "silence.npy"
 
 '''
 load file
@@ -13,9 +19,9 @@ extract features
 save features in proper partition folder with name equivalent to original
 
 '''
-wav_path = "/home/patrick/PycharmProjects/Speech Recognition/speech_commands"
-feature_path = "/home/patrick/PycharmProjects/Speech Recognition/speech_cmd_features"
-
+wav_path = "C:\\Users\\Humphrey\\PycharmProjects\\speech-recognition\\speech_commands"
+feature_path = "C:\\Users\\Humphrey\\PycharmProjects\\speech-recognition\\speech_cmd_features"
+'''
 def audio_to_feature_files(wav_dir, feature_dir):
     test_set_file = open(os.path.join(wav_dir, 'testing_list.txt'), mode='r')
     val_set_file = open(os.path.join(wav_dir, 'validation_list.txt'), mode='r')
@@ -29,7 +35,6 @@ def audio_to_feature_files(wav_dir, feature_dir):
     sess = tf.InteractiveSession()
     processor = AudioProcessor(training=True)
 
-    j = 0
     path = os.path.join(wav_path, '*', '*.wav')
     for f in gfile.Glob(path):
         f_path, audio_file = os.path.split(f)
@@ -74,17 +79,58 @@ def audio_to_feature_files(wav_dir, feature_dir):
                 os.makedirs(ffdir)
 
             np.save(feature_file_path, audio_features)
-        j += 1
-        print("%d/%d" % (j, len(gfile.Glob(path))))
 
     sess.close()
+'''
 
+def prepare_dataset(feature_dir, word_list, silence_percent=10, unknown_percent=10):
+    data = {'test': [], 'training': [], 'validation': []}
 
-#def load_feature_files(feature_dir, batch_size, word_list, data_set='training'):
+    # add file paths to words in word_list with labels
+    for dataset in data:
+        set_path = os.path.join(feature_dir, dataset)
+        for i in range(len(word_list)):
+            path = os.path.join(set_path, word_list[i], '*')
+            for f in glob(path):
+                data[dataset].append((f, i+2))
 
+        # add placeholders for 'silence' files
+        num_silence_files = int(len(data[dataset]) * (silence_percent/100))
+        silence_path = os.path.join(feature_dir, _SILENCE_FILE_)
+        for _ in range(num_silence_files):
+            data[dataset].append((silence_path, _SILENCE_LABEL_))
 
-audio_to_feature_files(wav_path, feature_path)
+        # add files for unrecognized words
+        num_unknown_files = int((len(data[dataset]) - num_silence_files) * (unknown_percent/100))
+        all_words_path = os.path.join(set_path, '*')
+        all_files = []
+        for p in glob(all_words_path):
+            _, word = os.path.split(p)
+            if word not in word_list:
+                new_word = os.path.join(p, '*')
+                all_files += glob(new_word)
+        random.shuffle(all_files)
+
+        for i in range(num_unknown_files):
+            data[dataset].append((all_files[i], _UNKN_LABEL_))
+
+        random.shuffle(data[dataset])
+
+    return data
+
+def load_batch(dataset, batch_size, batch):
+    offset = batch * batch_size
+    next_batch = dataset[offset:offset+batch_size]
+    loaded_files = []
+    for i in range(len(next_batch)):
+        f = np.load(next_batch[i][0])
+        loaded_files.append((f, next_batch[i][1]))
+
+    return loaded_files
 
 '''
-train and save models
+d = prepare_dataset(feature_path, ["one", "two"])
+test = d['test']
+for item in test:
+    print(item)
 '''

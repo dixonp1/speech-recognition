@@ -54,4 +54,3 @@ for i in range(len(x[0])):
     print(s)
     print(word, conf)
 """
-
