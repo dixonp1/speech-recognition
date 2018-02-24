@@ -55,37 +55,6 @@ class AudioProcessor:
             decoder = audio_ops.decode_wav(loader, desired_channels=1)
             return sess.run(decoder, feed_dict={wav_filename: filename}).audio.flatten()
 
-    def prepare_training_data_info(self, words, validation_percentage, test_percentage):
-        """
-        divide training data into validation, test, and training partitions with labels.
-
-        :param words:
-        :param validation_percentage:
-        :param test_percentage:
-        :return:
-        """
-
-        '''
-        create structure to hold data info
-        iterate through folders and save path and label of training words
-            determine which data_set to save file to
-            save label and file path
-            if not training word save for unknown word
-            add 'silence' data to sets equal to silence_percentage
-                file path irrelevant, pick arbitrary file
-            add 'unknown' words to sets equal to unknown_percentage
-                shuffle first
-            shuffle all data sets
-
-        '''
-
-        random.seed(RANDOM_SEED)
-        word_index = {}
-        for index, word in enumerate(words):
-            word_index[word] = index + 2
-        data_index = {'validation': [], 'test': [], 'train': []}
-        unkn_index = {'validation': [], 'test': [], 'train': []}
-
     def create_processing_graph(self, training=False):
         """
         :return:
@@ -104,6 +73,9 @@ class AudioProcessor:
         signal = audio_ops.decode_wav(loader,
                                       desired_channels=1,
                                       desired_samples=MAX_SAMPLES).audio
+
+        self.volume_placeholder = tf.placeholder(tf.float32)
+        signal = signal * self.volume_placeholder
 
         emphasized_signal = tf.subtract(signal[1:], PRE_EMPHASIS * signal[:-1])
 

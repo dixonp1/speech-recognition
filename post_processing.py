@@ -1,5 +1,6 @@
 import numpy as np
 
+
 def _smooth_posteriors(posteriors, smoothed, j, w_smooth):
     '''
     p'[i,j] = 1 / (j - h_smooth + 1) * sum(p[i,k], k=h_smooth, end=j)
@@ -44,9 +45,9 @@ def recommend_word(net_out, smoothed_out, frame, w_smooth, w_max, threshold):
 
 """
 '''   TESTING   '''
-x = np.array([[.45, .14, .09, .05],
-              [.4,  .60, .76, .89],
-              [.15, .26, .15, .06]], dtype=float)
+x = np.array([[.45, .14, .09, .15],
+              [.4,  .60, .76, .59],
+              [.15, .26, .15, .26]], dtype=float)
 s = np.zeros_like(x, dtype=float)
 
 for i in range(len(x[0])):
