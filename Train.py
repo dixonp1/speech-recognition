@@ -1,6 +1,6 @@
 import tensorflow as tf
 import numpy as np
-from Input_Data import AudioProcessor
+#from Input_Data import AudioProcessor
 from NeuralNetwork import model
 import post_processing as phm
 from tensorflow.python.platform import gfile
@@ -8,8 +8,8 @@ from math import floor
 from glob import glob
 import os.path
 import random
+import time as t
 
-batch_size = 64
 
 MAX_SHIFT = 100 #ms
 _SILENCE_LABEL_ = 0
@@ -17,12 +17,13 @@ _UNKN_LABEL_ = 1
 _SILENCE_FILE_ = "silence.npy"
 
 # windows
-#wav_path = "C:\\Users\\Humphrey\\PycharmProjects\\speech-recognition\\speech_commands"
-#feature_path = "C:\\Users\\Humphrey\\PycharmProjects\\speech-recognition\\speech_cmd_features"
+wav_path = "C:\\Users\\Humphrey\\PycharmProjects\\speech-recognition\\speech_commands"
+feature_path = "C:\\Users\\Humphrey\\PycharmProjects\\speech-recognition\\speech_cmd_features"
+save_path = "C:\\Users\\Humphrey\\PycharmProjects\\speech-recognition\\models"
 
 # linux
-wav_path = "/home/patrick/PycharmProjects/Speech Recognition/speech_commands"
-feature_path = "/home/patrick/PycharmProjects/Speech Recognition/speech_cmd_features"
+#wav_path = "/home/patrick/PycharmProjects/Speech Recognition/speech_commands"
+#feature_path = "/home/patrick/PycharmProjects/Speech Recognition/speech_cmd_features"
 
 '''
 def audio_to_feature_files(wav_dir, feature_dir):
@@ -101,20 +102,25 @@ def audio_to_feature_files(wav_dir, feature_dir):
 def prepare_dataset(feature_dir, word_list, silence_percent=10, unknown_percent=10):
     data = {'test': [], 'training': [], 'validation': []}
 
+    num_examples = len(word_list) * 5000
     # add file paths to words in word_list with labels
     for dataset in data:
         set_path = os.path.join(feature_dir, dataset)
         for i in range(len(word_list)):
+            label = np.zeros(len(word_list) + 2)
+            label[i+2] = 1
             path = os.path.join(set_path, word_list[i], '*')
-            for f in glob(path):
-                data[dataset].append((f, i+2))
+            for f in glob(path)[:num_examples]:
+                data[dataset].append((f, label))
 
         set_size = len(data[dataset])
         # add placeholders for 'silence' files
         num_silence_files = int(set_size * (silence_percent/100))
         silence_path = os.path.join(feature_dir, _SILENCE_FILE_)
+        label = np.zeros(len(word_list) + 2)
+        label[_SILENCE_LABEL_] = 1
         for _ in range(num_silence_files):
-            data[dataset].append((silence_path, _SILENCE_LABEL_))
+            data[dataset].append((silence_path, label))
 
         # add files for unrecognized words
         num_unknown_files = int(set_size * (unknown_percent/100))
@@ -127,8 +133,10 @@ def prepare_dataset(feature_dir, word_list, silence_percent=10, unknown_percent=
                 all_files += glob(new_word)
         random.shuffle(all_files)
 
+        label = np.zeros(len(word_list) + 2)
+        label[_UNKN_LABEL_] = 1
         for i in range(num_unknown_files):
-            data[dataset].append((all_files[i], _UNKN_LABEL_))
+            data[dataset].append((all_files[i], label))
 
         random.shuffle(data[dataset])
 
@@ -136,60 +144,84 @@ def prepare_dataset(feature_dir, word_list, silence_percent=10, unknown_percent=
 
 def load_batch(dataset, batch, batch_size):
     offset = batch * batch_size
-    next_batch = dataset[offset:offset+batch_size]
+    if batch_size == -1:
+        next_batch = dataset
+    else:
+        next_batch = dataset[offset:offset+batch_size]
     loaded_files = []
+    labels = []
     for i in range(len(next_batch)):
         f = np.load(next_batch[i][0])
-        loaded_files.append((f, next_batch[i][1]))
+        loaded_files.append(f)
+        labels.append(next_batch[i][1])
 
-    return loaded_files
+    return [loaded_files, labels]
 
+start = t.time()
 
+batch_size = 32
 epoch = 100
 word_list = ["one", "two", "three"]
 data = prepare_dataset(feature_path, word_list)
 
-network = model(len(word_list) + 2)
+sig_features = tf.placeholder(tf.float32, [None, 99, 40])
+network = model(sig_features, len(word_list) + 2)
 
 # cost function
-predictions = tf.placeholder(tf.float32)
-labels = tf.placeholder(tf.int32)
-cross_entropy = labels * tf.log(predictions) + (1 - labels) * tf.log(1 - predictions)
+#predictions = tf.placeholder(tf.float32, [None, len(word_list) + 2])
+predictions = network.softmax
+labels = tf.placeholder(tf.float32, [None, len(word_list) + 2])
+#cross_entropy = labels * tf.log(predictions) + (1 - labels) * tf.log(1 - predictions)
+cross_entropy = tf.nn.softmax_cross_entropy_with_logits(labels=labels, logits=predictions)
 cross_entropy = tf.reduce_mean(cross_entropy)
 
 # training optimizer
-train = tf.train.AdamOptimizer(0.0001).minimize(cross_entropy)
+with tf.control_dependencies([tf.add_check_numerics_ops()]):
+    #train = tf.train.AdamOptimizer(0.0001).minimize(cross_entropy)
+    train = tf.train.GradientDescentOptimizer(0.001).minimize(cross_entropy)
 
 # accuracy
 correct = tf.equal(tf.argmax(predictions, 1), tf.argmax(labels, 1))
 accuracy = tf.reduce_mean(tf.cast(correct, tf.float32))
 
+saver = tf.train.Saver(tf.global_variables())
+
+config = tf.ConfigProto()
+config.gpu_options.allow_growth = True
 # run graph
-sess = tf.InteractiveSession()
+sess = tf.InteractiveSession(config=config)
 sess.run(tf.global_variables_initializer())
 
-for i in range(epoch):
+for i in range(100):
+    print('epoch', i)
+    random.shuffle(data['training'])
     num_training_batches = int(len(data['training']) / batch_size)
-    num_validation_batches = int(len(data['validatoin']) / batch_size)
+    #num_validation_batches = int(len(data['validatoin']) / batch_size)
+    if i % 10 == 0:
+        random.shuffle(data['validation'])
+        validation = load_batch(data['validation'], 0, -1)
+        #val_pred = model.forward_prop(val_batch[0], sess)
+        train_accuracy = accuracy.eval(feed_dict={
+            sig_features: validation[0], labels: validation[1]
+        })
+        print('step %d\ttraining accuracy: %g' % (i, train_accuracy))
 
     for b in range(num_training_batches):
         batch = load_batch(data['training'], b, batch_size)
-        batch_pred = model.forward_prop(batch, sess)
-        if i % 100 == 0:
-            val_batch = load_batch(data['validation'], b, batch_size)
-            val_pred = model.forward_prop(val_batch['files'], sess)
-            train_accuracy = accuracy.eval(feed_dict={
-                predictions: val_pred, labels: val_batch['labels']
-            })
-            print('step %d\ttraining accuracy: %g' % (i, train_accuracy))
-        train.run(feed_dict={predictions: batch_pred, labels: batch['labels']})
+        #batch_pred = model.forward_prop(batch[0], sess)
+        train.run(feed_dict={sig_features: batch[0], labels: batch[1]})
 
-test_data = data['test']
-test_pred = model.forward_prop(test_data['files'], sess)
-print('test accuracy %g' % accuracy.eval(feed_dict={
-    predictions: test_pred, labels: test_data['labels']
-}))
+test_data = load_batch(data['test'], 0, -1)
+#test_pred = model.forward_prop(test_data[0], sess)
+test_accuracy = accuracy.eval(feed_dict={sig_features: test_data[0], labels: test_data[1]})
+print('test accuracy %g' % test_accuracy)
 
+filename = "freq_pool_%g.ckpt" % test_accuracy
+cp_path = os.path.join(save_path, filename)
+saver.save(sess, cp_path)
+
+end = t.time()
+print('runtime: ', end-start)
 sess.close()
 '''
 d = prepare_dataset(feature_path, ["one", "two"])
