@@ -102,7 +102,7 @@ def audio_to_feature_files(wav_dir, feature_dir):
 def prepare_dataset(feature_dir, word_list, silence_percent=10, unknown_percent=10):
     data = {'test': [], 'training': [], 'validation': []}
 
-    num_examples = len(word_list) * 5000
+    num_examples = len(word_list) * 15000
     # add file paths to words in word_list with labels
     for dataset in data:
         set_path = os.path.join(feature_dir, dataset)
@@ -159,7 +159,7 @@ def load_batch(dataset, batch, batch_size):
 
 start = t.time()
 
-batch_size = 32
+batch_size = 64
 epoch = 100
 word_list = ["one", "two", "three"]
 data = prepare_dataset(feature_path, word_list)
@@ -178,7 +178,7 @@ cross_entropy = tf.reduce_mean(cross_entropy)
 # training optimizer
 with tf.control_dependencies([tf.add_check_numerics_ops()]):
     #train = tf.train.AdamOptimizer(0.0001).minimize(cross_entropy)
-    train = tf.train.GradientDescentOptimizer(0.001).minimize(cross_entropy)
+    train = tf.train.GradientDescentOptimizer(0.005).minimize(cross_entropy)
 
 # accuracy
 correct = tf.equal(tf.argmax(predictions, 1), tf.argmax(labels, 1))
@@ -192,7 +192,7 @@ config.gpu_options.allow_growth = True
 sess = tf.InteractiveSession(config=config)
 sess.run(tf.global_variables_initializer())
 
-for i in range(100):
+for i in range(150):
     print('epoch', i)
     random.shuffle(data['training'])
     num_training_batches = int(len(data['training']) / batch_size)
@@ -216,7 +216,7 @@ test_data = load_batch(data['test'], 0, -1)
 test_accuracy = accuracy.eval(feed_dict={sig_features: test_data[0], labels: test_data[1]})
 print('test accuracy %g' % test_accuracy)
 
-filename = "freq_pool_%g.ckpt" % test_accuracy
+filename = "norm_pool_%g.ckpt" % test_accuracy
 cp_path = os.path.join(save_path, filename)
 saver.save(sess, cp_path)
 

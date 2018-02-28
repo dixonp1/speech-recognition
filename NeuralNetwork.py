@@ -57,13 +57,13 @@ class model:
         out_width = relu2.get_shape()[2]
 
         # fully-connected layer
-        W3, b3 = self._init_weights([int(out_height*out_width*64), 128])
+        W3, b3 = self._init_weights([int(out_height*out_width*64), 512])
         flatten = tf.reshape(relu2, [-1, int(out_height*out_width*64)])
         z1 = tf.matmul(flatten, W3) + b3
         relu3 = tf.nn.relu(z1)
 
         # softmax
-        W4, b4 = self._init_weights([128, num_classes])
+        W4, b4 = self._init_weights([512, num_classes])
         z2 = tf.matmul(relu3, W4) + b4
         # softmax = tf.exp(z2) / tf.reduce_sum(tf.exp(z2), -1)
         #sm = tf.nn.softmax(z2)
